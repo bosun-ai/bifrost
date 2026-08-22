@@ -56,7 +56,7 @@ jobs:
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf
         with:
           context: .
-          file: ./transports/Dockerfile
+          file: ./transports/Dockerfile.local
           platforms: linux/amd64
           push: true
           provenance: false
