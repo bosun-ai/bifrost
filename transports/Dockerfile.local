@@ -76,6 +76,7 @@
 
   # Create data directory and set up user
   COPY --from=builder /app/main .
+  COPY --from=builder /build/transports/config.schema.json .
   COPY --from=builder /build/transports/docker-entrypoint.sh .
 
   # Getting arguments

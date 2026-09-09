@@ -5173,6 +5173,9 @@
     "provider_with_bedrock_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5212,6 +5215,9 @@
     "provider_with_bedrock_mantle_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5251,6 +5257,9 @@
     "provider_with_vllm_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5290,6 +5299,9 @@
     "provider_with_replicate_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5329,6 +5341,9 @@
     "provider_with_databricks_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5368,6 +5383,9 @@
     "provider_with_azure_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5407,6 +5425,9 @@
     "provider_with_github_copilot_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5446,6 +5467,9 @@
     "provider_with_vertex_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5485,6 +5509,9 @@
     "provider_with_ollama_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5523,6 +5550,9 @@
     "provider_with_sgl_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5561,6 +5591,9 @@
     "provider_with_deepseek_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
@@ -5600,6 +5633,9 @@
     "provider_with_fireworks_config": {
       "type": "object",
       "properties": {
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "keys": {
           "type": "array",
           "items": {
