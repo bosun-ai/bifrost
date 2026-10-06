@@ -145440,7 +145440,7 @@
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
                   "  var body = pm.response.json();",
                   "  pm.expect(body.status).to.eql('completed');",
-                  "  pm.expect(body.output, 'missing model output').to.be.an('array').and.not.empty;",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
                   "});"
                 ]
               }
@@ -145537,7 +145537,7 @@
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
                   "  var body = pm.response.json();",
                   "  pm.expect(body.status).to.eql('completed');",
-                  "  pm.expect(body.output, 'missing model output').to.be.an('array').and.not.empty;",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
                   "});"
                 ]
               }
