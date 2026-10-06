@@ -145393,6 +145393,206 @@
           ]
         }
       ]
+    },
+    {
+      "name": "76. GPT-6 Mantle endpoint routing",
+      "description": "GPT-6 models require the OpenAI-compatible /openai/v1 path. Both Sol and Luna previously selected /v1 and failed with HTTP 400. Unary and streaming Responses requests must complete with model output.",
+      "item": [
+        {
+          "name": "bedrock_mantle/openai.gpt-6.1-sol Responses unary - gpt6-mantle-path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('completed');",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6.1-sol Responses streaming - gpt6-mantle-path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  pm.expect(pm.response.text(), 'missing completed response').to.include('response.completed');",
+                  "  pm.expect(pm.response.text(), 'missing text output').to.include('response.output_text.delta');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6-luna Responses unary - gpt6-mantle-path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('completed');",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6-luna Responses streaming - gpt6-mantle-path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  pm.expect(pm.response.text(), 'missing completed response').to.include('response.completed');",
+                  "  pm.expect(pm.response.text(), 'missing text output').to.include('response.output_text.delta');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

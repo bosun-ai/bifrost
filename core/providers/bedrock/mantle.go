@@ -59,7 +59,7 @@ func isMantleModel(ctx *schemas.BifrostContext, model string) bool {
 // base path; gpt-oss uses the bare "v1" path.
 func mantleOpenAIURL(endpoints *schemas.BedrockEndpoints, region, model, path string) string {
 	base := "v1"
-	if strings.Contains(model, "gpt-5") || strings.Contains(model, "gemma-4") || schemas.IsGrokModel(model) {
+	if strings.Contains(model, "gpt-5") || strings.Contains(model, "gpt-6") || strings.Contains(model, "gemma-4") || schemas.IsGrokModel(model) {
 		base = "openai/v1"
 	}
 	return fmt.Sprintf("https://%s/%s/%s", resolveBedrockHost(endpoints, bedrockServiceMantle, region), base, path)
