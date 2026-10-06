@@ -145434,7 +145434,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
                   "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
@@ -145483,7 +145483,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
                   "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
@@ -145531,7 +145531,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
                   "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
@@ -145580,7 +145580,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "if ([401, 403, 429].indexOf(pm.response.code) !== -1) { return; }",
                   "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
                   "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
                   "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
