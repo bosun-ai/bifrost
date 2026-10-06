@@ -145410,7 +145410,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 64,\n  \"stream\": false\n}",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -145459,7 +145459,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 64,\n  \"stream\": true\n}",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -145507,7 +145507,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 64,\n  \"stream\": false\n}",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -145556,7 +145556,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 64,\n  \"stream\": true\n}",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
