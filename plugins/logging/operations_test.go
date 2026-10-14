@@ -17,6 +17,7 @@ import (
 	"github.com/maximhq/bifrost/framework/modelcatalog/datasheet"
 	"github.com/maximhq/bifrost/framework/streaming"
 	"github.com/maximhq/bifrost/framework/tracing"
+	"github.com/stretchr/testify/require"
 )
 
 type testLogger struct{}
@@ -1834,6 +1835,81 @@ func TestActiveStreamSurvivesCleanup(t *testing.T) {
 	if _, ok := plugin.pendingLogsEntries.Load("req-active-stream"); !ok {
 		t.Fatal("expected actively-streaming pending entry to survive cleanup")
 	}
+}
+
+func TestCleanupPreservesActiveRequestsUntilCompletion(t *testing.T) {
+	for _, requestType := range []schemas.RequestType{schemas.ChatCompletionRequest, schemas.ChatCompletionStreamRequest} {
+		t.Run(string(requestType), func(t *testing.T) {
+			store := newTestStore(t)
+			plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, plugin.Cleanup())
+			})
+			ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+			defer ctx.Cancel()
+			ctx.SetValue(schemas.BifrostContextKeyRequestID, "req-slow-active")
+			pluginName := "logging"
+			scoped := ctx.WithPluginScope(&pluginName)
+			_, _, err = plugin.PreLLMHook(scoped, &schemas.BifrostRequest{
+				RequestType: requestType,
+				ChatRequest: &schemas.BifrostChatRequest{Provider: schemas.OpenAI, Model: "gpt-4o", Params: &schemas.ChatParameters{}},
+			})
+			require.NoError(t, err)
+			scoped.ReleasePluginScope()
+			value, ok := plugin.pendingLogsEntries.Load("req-slow-active")
+			require.True(t, ok, "expected pending request")
+			pending := value.(*PendingLogData)
+			stale := time.Now().Add(-pendingLogTTL - time.Minute)
+			pending.CreatedAt = stale
+			pending.LastActivity.Store(stale.UnixNano())
+			plugin.cleanupStalePendingLogs()
+			_, ok = plugin.pendingLogsEntries.Load("req-slow-active")
+			require.True(t, ok, "active request was removed before its first response")
+			if requestType == schemas.ChatCompletionStreamRequest {
+				return
+			}
+			_, _, err = plugin.PostLLMHook(ctx, &schemas.BifrostResponse{
+				ChatResponse: &schemas.BifrostChatResponse{ExtraFields: schemas.BifrostResponseExtraFields{
+					RequestType: requestType, Provider: schemas.OpenAI,
+					OriginalModelRequested: "gpt-4o", ResolvedModelUsed: "gpt-4o",
+				}},
+			}, nil)
+			require.NoError(t, err)
+			require.NoError(t, plugin.Cleanup())
+			entry, err := store.FindByID(context.Background(), "req-slow-active")
+			require.NoError(t, err, "completed request log missing")
+			require.Equal(t, "success", entry.Status)
+			_, ok = plugin.pendingLogsEntries.Load("req-slow-active")
+			require.False(t, ok, "completed request still pending")
+		})
+	}
+}
+
+func TestCleanupReclaimsCancelledRequests(t *testing.T) {
+	store := newTestStore(t)
+	plugin, err := Init(context.Background(), &Config{}, testLogger{}, store, nil, nil, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, plugin.Cleanup())
+	})
+	ctx := schemas.NewBifrostContext(context.Background(), schemas.NoDeadline)
+	ctx.SetValue(schemas.BifrostContextKeyRequestID, "req-cancelled")
+	_, _, err = plugin.PreLLMHook(ctx, &schemas.BifrostRequest{
+		RequestType: schemas.ChatCompletionRequest,
+		ChatRequest: &schemas.BifrostChatRequest{Provider: schemas.OpenAI, Model: "gpt-4o", Params: &schemas.ChatParameters{}},
+	})
+	require.NoError(t, err)
+	value, ok := plugin.pendingLogsEntries.Load("req-cancelled")
+	require.True(t, ok, "expected pending request")
+	pending := value.(*PendingLogData)
+	stale := time.Now().Add(-pendingLogTTL - time.Minute)
+	pending.CreatedAt = stale
+	pending.LastActivity.Store(stale.UnixNano())
+	ctx.Cancel()
+	plugin.cleanupStalePendingLogs()
+	_, ok = plugin.pendingLogsEntries.Load("req-cancelled")
+	require.False(t, ok, "cancelled stale request was retained")
 }
 
 // TestIdlePendingEntryEvicted verifies the reaper still removes genuinely dead

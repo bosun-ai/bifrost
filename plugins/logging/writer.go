@@ -11,12 +11,10 @@ import (
 )
 
 const (
-	// pendingLogTTL is the maximum idle gap (time since the last chunk/activity)
-	// a pending log entry can sit in memory before cleanup reclaims it. It is an
-	// idle timeout, not a total-lifetime cap: actively-streaming requests refresh
-	// their LastActivity on every chunk (see PostLLMHook), so a long-running stream
-	// is never evicted mid-flight. Matches the 30-minute window used by
-	// cleanupOldProcessingLogs so the two reapers agree on what "stale" means.
+	// pendingLogTTL is the idle gap after which cleanup can reclaim pending
+	// state for cancelled requests or entries without request lifecycle data.
+	// Active requests survive regardless of age, including unary calls and
+	// streams waiting for their first chunk.
 	pendingLogTTL = 15 * time.Minute
 	// cleanupDrainTimeout caps how long Cleanup spends draining the write queue
 	// itself. Matches the outer server shutdown budget at server.go:1596 so the
@@ -35,7 +33,8 @@ type PendingLogData struct {
 	Status             string
 	RoutingEnginesUsed []string
 	InitialData        *InitialLogData
-	CreatedAt          time.Time // For cleanup of stale entries
+	CreatedAt          time.Time       // For cleanup of stale entries
+	RequestDone        <-chan struct{} // Request lifecycle only; does not retain the context
 	// LastActivity is the unix-nano timestamp of the most recent PostLLMHook
 	// activity (e.g. each streaming chunk). cleanupStalePendingLogs evicts on
 	// idle time using this value, so long-running streams that keep producing
@@ -237,13 +236,20 @@ func (p *LoggerPlugin) cleanupStalePendingLogs() {
 		if pending, ok := value.(*PendingLogData); ok {
 			// Evict on idle time: use the last chunk/activity timestamp, falling
 			// back to CreatedAt for entries that never saw a PostLLMHook (e.g. a
-			// request abandoned before its first chunk). This keeps actively
-			// streaming requests alive past the TTL while still reaping dead ones.
+			// request abandoned before its first chunk). Request lifecycle below
+			// distinguishes a slow active request from an abandoned one.
 			lastActive := pending.CreatedAt
 			if nanos := pending.LastActivity.Load(); nanos > 0 {
 				lastActive = time.Unix(0, nanos)
 			}
 			if lastActive.Before(cutoff) {
+				if pending.RequestDone != nil {
+					select {
+					case <-pending.RequestDone:
+					default:
+						return true
+					}
+				}
 				p.pendingLogsEntries.Delete(key)
 			}
 		}

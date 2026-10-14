@@ -1833,6 +1833,7 @@ func (p *LoggerPlugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.Bifr
 		RoutingEnginesUsed: routingEngines,
 		InitialData:        initialData,
 		CreatedAt:          time.Now(),
+		RequestDone:        ctx.Done(),
 		Status:             logStatusProcessing,
 	}
 	// Seed LastActivity so the first idle-eviction check has a baseline even if no
