@@ -970,21 +970,38 @@ func applyMessageContentCacheControl(msgs []BedrockMessage, raw json.RawMessage)
 // injectContentBlockCachePoints walks the already-parsed blocks by index and, for each one,
 // queries "<basePath>.<index>.cache_control" directly against the raw JSON via gjson. A block
 // carrying cache_control gets a trailing standalone CachePoint sibling appended after it.
-// Recurses into tool_result blocks first, whose own nested content array can carry an
-// independent cache_control breakpoint of its own.
+// A cache_control nested inside a tool_result's own content array also surfaces as that sibling:
+// Converse's ToolResultContentBlock has no cachePoint member, so a checkpoint nested there is
+// accepted but never caches. The tool_result block's own marker wins when both are present.
 func injectContentBlockCachePoints(blocks []BedrockContentBlock, raw json.RawMessage, basePath string) []BedrockContentBlock {
 	result := make([]BedrockContentBlock, 0, len(blocks))
 	for j, block := range blocks {
 		blockPath := fmt.Sprintf("%s.%d", basePath, j)
-		if block.ToolResult != nil {
-			block.ToolResult.Content = injectContentBlockCachePoints(block.ToolResult.Content, raw, blockPath+".content")
-		}
 		result = append(result, block)
-		if cc := gjson.GetBytes(raw, blockPath+".cache_control"); cc.Exists() {
+		cc := gjson.GetBytes(raw, blockPath+".cache_control")
+		if !cc.Exists() && block.ToolResult != nil {
+			cc = lastNestedCacheControl(gjson.GetBytes(raw, blockPath+".content"))
+		}
+		if cc.Exists() {
 			result = append(result, BedrockContentBlock{CachePoint: newBedrockCachePoint(cacheControlTTLFromJSON(cc))})
 		}
 	}
 	return result
+}
+
+// lastNestedCacheControl returns the last cache_control among a tool_result's array-form content
+// blocks — the breakpoint closest to the end of the prefix. String content yields no result.
+func lastNestedCacheControl(content gjson.Result) gjson.Result {
+	var last gjson.Result
+	if content.IsArray() {
+		content.ForEach(func(_, block gjson.Result) bool {
+			if cc := block.Get("cache_control"); cc.Exists() {
+				last = cc
+			}
+			return true
+		})
+	}
+	return last
 }
 
 // cacheControlTTLFromJSON extracts the optional "ttl" string from a gjson-parsed cache_control

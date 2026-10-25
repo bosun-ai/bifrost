@@ -1357,44 +1357,18 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 
 	for _, msg := range msgs {
 		var toolResultContent []BedrockContentBlock
-		if msg.Content.ContentStr != nil {
-			// Bedrock expects JSON to be a parsed object, not a string
-			// Validate and compact JSON without parsing into Go types (preserves key ordering)
-			var buf bytes.Buffer
-			if err := json.Compact(&buf, []byte(*msg.Content.ContentStr)); err != nil {
-				// If it's not valid JSON, wrap it as a text block instead
-				toolResultContent = append(toolResultContent, BedrockContentBlock{
-					Text: msg.Content.ContentStr,
-				})
-			} else {
-				compacted := buf.Bytes()
-				// Bedrock does not accept primitives or arrays directly in the json field
-				if len(compacted) > 0 && compacted[0] == '{' {
-					// Objects are valid as-is
-					toolResultContent = append(toolResultContent, BedrockContentBlock{
-						JSON: json.RawMessage(compacted),
-					})
-				} else if len(compacted) > 0 && compacted[0] == '[' {
-					// Arrays need to be wrapped
-					wrapped := make([]byte, 0, len(compacted)+len(`{"results":}`))
-					wrapped = append(wrapped, `{"results":`...)
-					wrapped = append(wrapped, compacted...)
-					wrapped = append(wrapped, '}')
-					toolResultContent = append(toolResultContent, BedrockContentBlock{
-						JSON: json.RawMessage(wrapped),
-					})
-				} else {
-					// Primitives (string, number, boolean, null) need to be wrapped
-					wrapped := make([]byte, 0, len(compacted)+len(`{"value":}`))
-					wrapped = append(wrapped, `{"value":`...)
-					wrapped = append(wrapped, compacted...)
-					wrapped = append(wrapped, '}')
-					toolResultContent = append(toolResultContent, BedrockContentBlock{
-						JSON: json.RawMessage(wrapped),
-					})
-				}
-			}
-		} else if msg.Content.ContentBlocks != nil {
+		// Converse's ToolResultContentBlock has no cachePoint member: a checkpoint nested in
+		// toolResult.content is accepted but never caches. A marker on any tool-result block
+		// becomes one standalone cachePoint after the toolResult block instead (below).
+		var cacheControl *schemas.CacheControl
+		if text, marker, ok := singleToolResultText(msg.Content); ok {
+			// A lone text block goes through the same conversion as a plain string, so a result
+			// keeps one representation whether or not it currently carries the cache marker —
+			// otherwise moving the marker to a newer turn would rewrite this one and break the
+			// cached prefix.
+			toolResultContent = append(toolResultContent, bedrockToolResultTextBlock(text))
+			cacheControl = marker
+		} else if msg.Content != nil {
 			for _, block := range msg.Content.ContentBlocks {
 				switch block.Type {
 				case schemas.ChatContentBlockTypeText:
@@ -1402,11 +1376,8 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 						toolResultContent = append(toolResultContent, BedrockContentBlock{
 							Text: block.Text,
 						})
-						// Cache point must be in a separate block
 						if block.CacheControl != nil {
-							toolResultContent = append(toolResultContent, BedrockContentBlock{
-								CachePoint: newBedrockCachePoint(block.CacheControl.TTL),
-							})
+							cacheControl = block.CacheControl
 						}
 					}
 				case schemas.ChatContentBlockTypeImage:
@@ -1418,11 +1389,8 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 						toolResultContent = append(toolResultContent, BedrockContentBlock{
 							Image: imageSource,
 						})
-						// Cache point must be in a separate block
 						if block.CacheControl != nil {
-							toolResultContent = append(toolResultContent, BedrockContentBlock{
-								CachePoint: newBedrockCachePoint(block.CacheControl.TTL),
-							})
+							cacheControl = block.CacheControl
 						}
 					}
 				}
@@ -1451,10 +1419,58 @@ func convertToolMessages(ctx context.Context, model string, msgs []schemas.ChatM
 		}
 
 		contentBlocks = append(contentBlocks, toolResultBlock)
+		if cacheControl != nil {
+			contentBlocks = append(contentBlocks, BedrockContentBlock{
+				CachePoint: newBedrockCachePoint(cacheControl.TTL),
+			})
+		}
 	}
 
 	bedrockMsg.Content = contentBlocks
 	return bedrockMsg, nil
+}
+
+// singleToolResultText returns the text of a tool result that is a plain string or exactly one
+// text block, plus that block's cache marker. Anything else is converted block by block.
+func singleToolResultText(content *schemas.ChatMessageContent) (*string, *schemas.CacheControl, bool) {
+	if content == nil {
+		return nil, nil, false
+	}
+	if content.ContentStr != nil {
+		return content.ContentStr, nil, true
+	}
+	if blocks := content.ContentBlocks; len(blocks) == 1 && blocks[0].Type == schemas.ChatContentBlockTypeText && blocks[0].Text != nil {
+		return blocks[0].Text, blocks[0].CacheControl, true
+	}
+	return nil, nil, false
+}
+
+// bedrockToolResultTextBlock converts a tool's text output to a Converse tool-result block.
+// Bedrock expects JSON as a parsed document, so valid JSON becomes a json block (compacted
+// without decoding, preserving key order); anything else stays text. The json field only
+// accepts objects, so arrays and primitives are wrapped.
+func bedrockToolResultTextBlock(text *string) BedrockContentBlock {
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, []byte(*text)); err != nil {
+		return BedrockContentBlock{Text: text}
+	}
+	compacted := buf.Bytes()
+	var wrapperKey string
+	switch compacted[0] {
+	case '{':
+		return BedrockContentBlock{JSON: json.RawMessage(compacted)}
+	case '[':
+		wrapperKey = "results"
+	default:
+		wrapperKey = "value"
+	}
+	wrapped := make([]byte, 0, len(compacted)+len(wrapperKey)+5)
+	wrapped = append(wrapped, `{"`...)
+	wrapped = append(wrapped, wrapperKey...)
+	wrapped = append(wrapped, `":`...)
+	wrapped = append(wrapped, compacted...)
+	wrapped = append(wrapped, '}')
+	return BedrockContentBlock{JSON: json.RawMessage(wrapped)}
 }
 
 // convertContent converts Bifrost message content to Bedrock content blocks.
