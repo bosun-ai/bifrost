@@ -269,6 +269,9 @@ func (req *OpenAIChatRequest) normalizeReasoningEffort(caps schemas.ModelCaps) {
 
 // applyMistralCompatibility applies Mistral-specific transformations to the request
 func (req *OpenAIChatRequest) applyMistralCompatibility() {
+	// Mistral rejects OpenAI's user tracking field as an extra input (HTTP 422).
+	req.User = nil
+
 	// Mistral uses max_tokens instead of max_completion_tokens
 	if req.MaxCompletionTokens != nil {
 		req.MaxTokens = req.MaxCompletionTokens

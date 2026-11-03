@@ -11,6 +11,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestToOpenAIChatRequestMistralOmitsUnsupportedUser(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		provider schemas.ModelProvider
+		model    string
+		user     *string
+		keepUser bool
+	}{
+		{"large4", schemas.Mistral, "mistral-large-4", schemas.Ptr("benchmark-user"), false},
+		{"medium", schemas.Mistral, "mistral-medium-latest", schemas.Ptr("benchmark-user"), false},
+		{"empty user", schemas.Mistral, "mistral-large-4", schemas.Ptr(""), false},
+		{"no user", schemas.Mistral, "mistral-large-4", nil, false},
+		{"vertex mistral", schemas.Vertex, "mistral-large", schemas.Ptr("benchmark-user"), false},
+		{"openai unchanged", schemas.OpenAI, "gpt-4o", schemas.Ptr("benchmark-user"), true},
+		{"azure unchanged", schemas.Azure, "gpt-4o", schemas.Ptr("benchmark-user"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &schemas.BifrostChatRequest{
+				Provider: tc.provider,
+				Model:    tc.model,
+				Input: []schemas.ChatMessage{{
+					Role:    schemas.ChatMessageRoleUser,
+					Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")},
+				}},
+				Params: &schemas.ChatParameters{User: tc.user},
+			}
+			ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+			defer cancel()
+			converted := ToOpenAIChatRequest(ctx, request)
+			body, err := json.Marshal(converted)
+			require.NoError(t, err)
+			var wire map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(body, &wire))
+			if tc.keepUser {
+				require.JSONEq(t, `"benchmark-user"`, string(wire["user"]))
+			} else {
+				require.NotContains(t, wire, "user", "Mistral rejects this field with HTTP 422")
+			}
+			require.Equal(t, tc.user, request.Params.User, "conversion must preserve caller metadata")
+			require.Equal(t, "hello", *converted.Messages[0].Content.ContentStr)
+		})
+	}
+}
+
 func TestToOpenAIChatRequest_ToolNormalization(t *testing.T) {
 	// Create tool parameters with keys in non-alphabetical order:
 	// "required" before "properties" before "type" — Normalized() should reorder to

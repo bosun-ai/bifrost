@@ -145593,6 +145593,108 @@
           ]
         }
       ]
+    },
+    {
+      "name": "77. Mistral user metadata compatibility",
+      "description": "Regression from Bosun's Mistral Large 4 benchmark run 46cd90dc-570c-417a-a994-c6ef678d2f4a: /v1/chat/completions forwarded OpenAI's user tracking field and Mistral rejected body.user with HTTP 422 extra_forbidden. Pin both ordinary and streaming chat; use the smaller Mistral model to minimize live-test cost.",
+      "item": [
+        {
+          "name": "mistral/mistral-small-latest /v1/chat/completions user metadata",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-small-latest\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply only OK.\"\n    }\n  ],\n  \"user\": \"bosun-benchmark-user\",\n  \"max_tokens\": 32\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('Mistral accepts user metadata without extra_forbidden', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "  pm.expect(raw, 'unexpected provider rejection').not.to.include('extra_forbidden');",
+                  "});",
+                  "pm.test('Mistral returns an assistant completion', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.choices, 'missing choices: ' + raw).to.be.an('array').and.not.empty;",
+                  "  pm.expect(body.choices[0].message.content, 'missing content: ' + raw).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "mistral/mistral-small-latest /v1/chat/completions user metadata streaming",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-small-latest\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply only OK.\"\n    }\n  ],\n  \"user\": \"bosun-benchmark-user\",\n  \"max_tokens\": 32,\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('Mistral accepts user metadata without extra_forbidden', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "  pm.expect(raw, 'unexpected provider rejection').not.to.include('extra_forbidden');",
+                  "});",
+                  "pm.test('Mistral returns completion chunks', function () {",
+                  "  pm.expect(raw, 'no SSE response: ' + raw).to.include('data: ');",
+                  "  pm.expect(raw, 'no completion chunks: ' + raw).to.include('chat.completion.chunk');",
+                  "  pm.expect(raw, 'missing completion marker: ' + raw).to.include('[DONE]');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

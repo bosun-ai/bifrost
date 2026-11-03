@@ -16,6 +16,96 @@ import (
 
 const customMistralProviderName = schemas.ModelProvider("custom-mistral")
 
+func TestMistralProviderOmitsUserAtHTTPBoundary(t *testing.T) {
+	for _, providerName := range []schemas.ModelProvider{schemas.Mistral, customMistralProviderName} {
+		for _, api := range []string{"chat", "responses"} {
+			for _, streaming := range []bool{false, true} {
+				name := string(providerName) + "/" + api
+				if streaming {
+					name += "/stream"
+				}
+				t.Run(name, func(t *testing.T) {
+					captured := make(chan map[string]any, 1)
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						var request map[string]any
+						if err != nil || sonic.Unmarshal(body, &request) != nil {
+							http.Error(w, "invalid JSON", http.StatusBadRequest)
+							return
+						}
+						captured <- request
+						if _, exists := request["user"]; exists {
+							w.Header().Set("Content-Type", "application/json")
+							w.WriteHeader(http.StatusUnprocessableEntity)
+							_, _ = io.WriteString(w, `{"message":{"detail":[{"type":"extra_forbidden","loc":["body","user"],"msg":"Extra inputs are not permitted"}]}}`)
+							return
+						}
+						if streaming {
+							w.Header().Set("Content-Type", "text/event-stream")
+							_, _ = io.WriteString(w, "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"mistral-large-4\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+						} else {
+							w.Header().Set("Content-Type", "application/json")
+							_, _ = io.WriteString(w, `{"id":"chatcmpl-test","object":"chat.completion","created":1,"model":"mistral-large-4","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+						}
+					}))
+					defer server.Close()
+					config := &schemas.ProviderConfig{NetworkConfig: schemas.NetworkConfig{BaseURL: server.URL}}
+					ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
+					defer cancel()
+					if providerName == customMistralProviderName {
+						config.CustomProviderConfig = &schemas.CustomProviderConfig{
+							CustomProviderKey: string(providerName), BaseProviderType: schemas.Mistral,
+						}
+						ctx.SetValue(schemas.BifrostContextKeyIsCustomProvider, true)
+					}
+					provider := NewMistralProvider(config, &testLogger{})
+					request := &schemas.BifrostChatRequest{
+						Provider: providerName, Model: "mistral-large-4",
+						Input: []schemas.ChatMessage{{Role: schemas.ChatMessageRoleUser,
+							Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")}}},
+						Params: &schemas.ChatParameters{User: schemas.Ptr("benchmark-user")},
+					}
+					responsesRequest := request.ToResponsesRequest()
+					responsesRequest.Params.User = schemas.Ptr("benchmark-user")
+					if streaming {
+						postHook := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
+							return r, e
+						}
+						var stream chan *schemas.BifrostStreamChunk
+						var err *schemas.BifrostError
+						if api == "responses" {
+							stream, err = provider.ResponsesStream(ctx, postHook, nil, schemas.Key{}, responsesRequest)
+						} else {
+							stream, err = provider.ChatCompletionStream(ctx, postHook, nil, schemas.Key{}, request)
+						}
+						require.Nil(t, err)
+						chunks := 0
+						for chunk := range stream {
+							assert.Nil(t, chunk.BifrostError)
+							chunks++
+						}
+						require.Positive(t, chunks)
+					} else if api == "responses" {
+						response, err := provider.Responses(ctx, schemas.Key{}, responsesRequest)
+						require.Nil(t, err)
+						require.NotNil(t, response)
+					} else {
+						response, err := provider.ChatCompletion(ctx, schemas.Key{}, request)
+						require.Nil(t, err)
+						require.NotNil(t, response)
+					}
+					wire := <-captured
+					assert.NotContains(t, wire, "user")
+					assert.Equal(t, "mistral-large-4", wire["model"])
+					assert.Equal(t, "benchmark-user", *request.Params.User)
+					assert.Equal(t, "benchmark-user", *responsesRequest.Params.User)
+					assert.Equal(t, providerName, request.Provider)
+				})
+			}
+		}
+	}
+}
+
 func TestParseMistralError_UsesExportedConverterMetadata(t *testing.T) {
 	t.Parallel()
 
