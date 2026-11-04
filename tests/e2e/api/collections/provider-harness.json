@@ -145695,6 +145695,133 @@
           ]
         }
       ]
+    },
+    {
+      "name": "78. Mistral thinking normalization (Swiftide #1212)",
+      "description": "Mistral Large 4 returns native thinking/text arrays. Normalize before generic decoding so OpenAI clients receive string/null visible content, separate reasoning and intact tools in ordinary and streaming responses.",
+      "item": [
+        {
+          "name": "mistral/mistral-large-4 ordinary thinking normalization - Swiftide #1212",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-large-4\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Call echo exactly once with text gateway-check.\"\n    }\n  ],\n  \"reasoning_effort\": \"high\",\n  \"max_tokens\": 1024,\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"echo\",\n        \"description\": \"Echo a short string.\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"text\": {\n              \"type\": \"string\"\n            }\n          },\n          \"required\": [\n            \"text\"\n          ],\n          \"additionalProperties\": false\n        }\n      }\n    }\n  ],\n  \"tool_choice\": \"required\",\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('Mistral thinking normalization preserves reasoning and tools', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  var message = pm.response.json().choices[0].message;",
+                  "  pm.expect(message.content == null || typeof message.content === 'string', 'content must not be an array').to.be.true;",
+                  "  var reasoning = message.reasoning_content || message.reasoning || '';",
+                  "  var calls = message.tool_calls || [];",
+                  "  pm.expect(reasoning.length, 'missing separate reasoning').to.be.above(0);",
+                  "  pm.expect(calls.length, 'missing tool call').to.eql(1);",
+                  "  pm.expect(calls[0].function.name).to.eql('echo');",
+                  "  pm.expect(JSON.parse(calls[0].function.arguments).text).to.eql('gateway-check');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "mistral/mistral-large-4 streaming thinking normalization - Swiftide #1212",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-large-4\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Call echo exactly once with text gateway-check.\"\n    }\n  ],\n  \"reasoning_effort\": \"high\",\n  \"max_tokens\": 1024,\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"echo\",\n        \"description\": \"Echo a short string.\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"text\": {\n              \"type\": \"string\"\n            }\n          },\n          \"required\": [\n            \"text\"\n          ],\n          \"additionalProperties\": false\n        }\n      }\n    }\n  ],\n  \"tool_choice\": \"required\",\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('Mistral thinking normalization preserves reasoning and tools', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  var reasoning = '', byIndex = {};",
+                  "  pm.expect(pm.response.text()).to.include('[DONE]');",
+                  "  pm.response.text().split('\\n').forEach(function (line) {",
+                  "    if (line.indexOf('data:') !== 0 || line.slice(5).trim() === '[DONE]') { return; }",
+                  "    var chunk = JSON.parse(line.slice(5).trim());",
+                  "    (chunk.choices || []).forEach(function (choice) {",
+                  "      var delta = choice.delta || {};",
+                  "      pm.expect(delta.content == null || typeof delta.content === 'string', 'content must not be an array').to.be.true;",
+                  "      reasoning += delta.reasoning_content || delta.reasoning || '';",
+                  "      (delta.tool_calls || []).forEach(function (part) {",
+                  "        var call = byIndex[part.index] || (byIndex[part.index] = {function: {name: '', arguments: ''}});",
+                  "        call.function.name += (part.function || {}).name || '';",
+                  "        call.function.arguments += (part.function || {}).arguments || '';",
+                  "      });",
+                  "    });",
+                  "  });",
+                  "  var calls = Object.keys(byIndex).map(function (index) { return byIndex[index]; });",
+                  "  pm.expect(reasoning.length, 'missing separate reasoning').to.be.above(0);",
+                  "  pm.expect(calls.length, 'missing tool call').to.eql(1);",
+                  "  pm.expect(calls[0].function.name).to.eql('echo');",
+                  "  pm.expect(JSON.parse(calls[0].function.arguments).text).to.eql('gateway-check');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
