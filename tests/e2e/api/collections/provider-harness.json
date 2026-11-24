@@ -349555,6 +349555,606 @@
           ]
         }
       ]
+    },
+    {
+      "name": "382. Strict zero-argument tools preserve required (#6404) (bosun-rebase)",
+      "description": "A decoded strict zero-argument tool schema used to lose its explicit required: [] when Bifrost marshalled the provider request, allowing the upstream OpenAI schema validator to reject it. These cases pin the shared schema round-trip through both native OpenAI-compatible routes and verify that the forced tool is accepted with an empty argument object.",
+      "item": [
+        {
+          "name": "openai/gpt-4o-mini /v1/responses strict zero-argument tool - #6404 - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"openai/gpt-4o-mini\",\n  \"input\": \"Call get_current_time. It takes no arguments.\",\n  \"max_output_tokens\": 64,\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"name\": \"get_current_time\",\n      \"description\": \"Return the current time.\",\n      \"parameters\": {\n        \"type\": \"object\",\n        \"properties\": {},\n        \"required\": [],\n        \"additionalProperties\": false\n      },\n      \"strict\": true\n    }\n  ],\n  \"tool_choice\": {\n    \"type\": \"function\",\n    \"name\": \"get_current_time\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('strict zero-argument schema is accepted', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "});",
+                  "var j; try { j = pm.response.json(); } catch (e) {",
+                  "  pm.expect.fail('response was not JSON: ' + raw.slice(0, 300)); return; }",
+                  "var calls = (j.output || []).filter(function (o) { return o && o.type === 'function_call'; });",
+                  "pm.test('forced zero-argument function is called with an empty object', function () {",
+                  "  pm.expect(calls.length, 'no tool call in response: ' + raw.slice(0, 500)).to.be.above(0);",
+                  "  pm.expect(calls[0].name).to.eql('get_current_time');",
+                  "  pm.expect(calls[0].arguments, 'missing function arguments').to.be.a('string').and.not.empty;",
+                  "  var args = JSON.parse(calls[0].arguments);",
+                  "  pm.expect(args !== null && typeof args === 'object' && !Array.isArray(args), 'expected an arguments object: ' + calls[0].arguments).to.be.true;",
+                  "  pm.expect(Object.keys(args), 'expected empty arguments: ' + calls[0].arguments).to.have.length(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "openai/gpt-4o-mini /v1/chat/completions strict zero-argument tool - #6404 - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"openai/gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Call get_current_time. It takes no arguments.\"\n    }\n  ],\n  \"max_tokens\": 64,\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"get_current_time\",\n        \"description\": \"Return the current time.\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {},\n          \"required\": [],\n          \"additionalProperties\": false\n        },\n        \"strict\": true\n      }\n    }\n  ],\n  \"tool_choice\": {\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"get_current_time\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('strict zero-argument schema is accepted', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "});",
+                  "var j; try { j = pm.response.json(); } catch (e) {",
+                  "  pm.expect.fail('response was not JSON: ' + raw.slice(0, 300)); return; }",
+                  "var calls = (((j.choices || [])[0] || {}).message || {}).tool_calls || [];",
+                  "pm.test('forced zero-argument function is called with an empty object', function () {",
+                  "  pm.expect(calls.length, 'no tool call in response: ' + raw.slice(0, 500)).to.be.above(0);",
+                  "  pm.expect((calls[0].function || {}).name).to.eql('get_current_time');",
+                  "  pm.expect((calls[0].function || {}).arguments, 'missing function arguments').to.be.a('string').and.not.empty;",
+                  "  var args = JSON.parse((calls[0].function || {}).arguments);",
+                  "  pm.expect(args !== null && typeof args === 'object' && !Array.isArray(args), 'expected an arguments object: ' + (calls[0].function || {}).arguments).to.be.true;",
+                  "  pm.expect(Object.keys(args), 'expected empty arguments: ' + (calls[0].function || {}).arguments).to.have.length(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "383. GPT-6 Mantle endpoint routing (bosun-rebase)",
+      "description": "GPT-6 models require the OpenAI-compatible /openai/v1 path. Both Sol and Luna previously selected /v1 and failed with HTTP 400. Unary and streaming Responses requests must complete with model output.",
+      "item": [
+        {
+          "name": "bedrock_mantle/openai.gpt-6.1-sol Responses unary - gpt6-mantle-path - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('completed');",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6.1-sol Responses streaming - gpt6-mantle-path - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6.1-sol\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  pm.expect(pm.response.text(), 'missing completed response').to.include('response.completed');",
+                  "  pm.expect(pm.response.text(), 'missing text output').to.include('response.output_text.delta');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6-luna Responses unary - gpt6-mantle-path - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('completed');",
+                  "  pm.expect((body.output || []).some(function (item) { return item.type === 'message' && item.role === 'assistant' && (item.content || []).some(function (part) { return part.type === 'output_text' && typeof part.text === 'string' && part.text.trim().length > 0; }); }), 'missing assistant text: ' + pm.response.text()).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-6-luna Responses streaming - gpt6-mantle-path - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/openai.gpt-6-luna\",\n  \"input\": \"Reply with OK.\",\n  \"reasoning\": {\n    \"effort\": \"low\"\n  },\n  \"max_output_tokens\": 128,\n  \"stream\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/responses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "responses"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('GPT-6 uses the supported Mantle endpoint', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  pm.expect(pm.response.text()).not.to.include('does not support /v1/responses');",
+                  "  pm.expect(pm.response.text(), 'missing completed response').to.include('response.completed');",
+                  "  pm.expect(pm.response.text(), 'missing text output').to.include('response.output_text.delta');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "384. Mistral user metadata compatibility (bosun-rebase)",
+      "description": "Regression from Bosun's Mistral Large 4 benchmark run 46cd90dc-570c-417a-a994-c6ef678d2f4a: /v1/chat/completions forwarded OpenAI's user tracking field and Mistral rejected body.user with HTTP 422 extra_forbidden. Pin both ordinary and streaming chat; use the smaller Mistral model to minimize live-test cost.",
+      "item": [
+        {
+          "name": "mistral/mistral-small-latest /v1/chat/completions user metadata - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-small-latest\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply only OK.\"\n    }\n  ],\n  \"user\": \"bosun-benchmark-user\",\n  \"max_tokens\": 32\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('Mistral accepts user metadata without extra_forbidden', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "  pm.expect(raw, 'unexpected provider rejection').not.to.include('extra_forbidden');",
+                  "});",
+                  "pm.test('Mistral returns an assistant completion', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.choices, 'missing choices: ' + raw).to.be.an('array').and.not.empty;",
+                  "  pm.expect(body.choices[0].message.content, 'missing content: ' + raw).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "mistral/mistral-small-latest /v1/chat/completions user metadata streaming - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-small-latest\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply only OK.\"\n    }\n  ],\n  \"user\": \"bosun-benchmark-user\",\n  \"max_tokens\": 32,\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var raw = pm.response.text() || '';",
+                  "pm.test('Mistral accepts user metadata without extra_forbidden', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + raw).to.eql(200);",
+                  "  pm.expect(raw, 'unexpected provider rejection').not.to.include('extra_forbidden');",
+                  "});",
+                  "pm.test('Mistral returns completion chunks', function () {",
+                  "  pm.expect(raw, 'no SSE response: ' + raw).to.include('data: ');",
+                  "  pm.expect(raw, 'no completion chunks: ' + raw).to.include('chat.completion.chunk');",
+                  "  pm.expect(raw, 'missing completion marker: ' + raw).to.include('[DONE]');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "385. Mistral thinking normalization (Swiftide #1212) (bosun-rebase)",
+      "description": "Mistral Large 4 returns native thinking/text arrays. Normalize before generic decoding so OpenAI clients receive string/null visible content, separate reasoning and intact tools in ordinary and streaming responses.",
+      "item": [
+        {
+          "name": "mistral/mistral-large-4 ordinary thinking normalization - Swiftide #1212 - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-large-4\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Call echo exactly once with text gateway-check.\"\n    }\n  ],\n  \"reasoning_effort\": \"high\",\n  \"max_tokens\": 1024,\n  \"tools\": [\n    {\n      \"type\": \"function\",\n      \"function\": {\n        \"name\": \"echo\",\n        \"description\": \"Echo a short string.\",\n        \"parameters\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"text\": {\n              \"type\": \"string\"\n            }\n          },\n          \"required\": [\n            \"text\"\n          ],\n          \"additionalProperties\": false\n        }\n      }\n    }\n  ],\n  \"tool_choice\": \"required\",\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Mistral thinking normalization preserves reasoning and tools', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  var message = pm.response.json().choices[0].message;",
+                  "  pm.expect(message.content == null || typeof message.content === 'string', 'content must not be an array').to.be.true;",
+                  "  var reasoning = message.reasoning_content || message.reasoning || '';",
+                  "  var calls = message.tool_calls || [];",
+                  "  pm.expect(reasoning.length, 'missing separate reasoning').to.be.above(0);",
+                  "  pm.expect(calls.length, 'missing tool call').to.eql(1);",
+                  "  pm.expect(calls[0].function.name).to.eql('echo');",
+                  "  pm.expect(JSON.parse(calls[0].function.arguments).text).to.eql('gateway-check');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "mistral/mistral-large-4 replays assistant reasoning as native thinking - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-bf-send-back-raw-request",
+                "value": "true"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"mistral/mistral-large-4\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Say hello.\"\n    },\n    {\n      \"role\": \"assistant\",\n      \"content\": \"Hello.\",\n      \"reasoning_content\": \"The user asked for a greeting.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with just OK.\"\n    }\n  ],\n  \"max_tokens\": 1024\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Mistral accepts native reasoning replay and returns text', function () {",
+                  "  pm.expect(pm.response.code, pm.response.text()).to.eql(200);",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body.choices[0].message.content).to.be.a('string').and.not.empty;",
+                  "  var wire = (body.extra_fields || {}).raw_request;",
+                  "  if (typeof wire === 'string') { wire = JSON.parse(wire); }",
+                  "  pm.expect(wire, 'raw request must be captured').to.be.an('object');",
+                  "  var assistant = wire.messages[1];",
+                  "  pm.expect(assistant).not.to.have.property('reasoning_content');",
+                  "  pm.expect(assistant.content).to.be.an('array');",
+                  "  pm.expect(assistant.content[0]).to.deep.equal({type:'thinking',closed:true,thinking:[{type:'text',text:'The user asked for a greeting.'}]});",
+                  "  pm.expect(assistant.content[1]).to.deep.equal({type:'text',text:'Hello.'});",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "386. Bedrock Invoke nested tool-result cache marker (bosun-rebase)",
+      "description": "A marker inside an Anthropic tool_result must reach Converse as a sibling cachePoint; nested Converse cache points do not cache. Padding exceeds Haiku 4.5 cache minimum.",
+      "item": [
+        {
+          "name": "bedrock/global.anthropic.claude-haiku-4-5-20251001-v1:0 Invoke honors a nested tool-result breakpoint - bosun-rebase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-bf-send-back-raw-request",
+                "value": "true"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{bosunInvokeCacheBody}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/bedrock/model/global.anthropic.claude-haiku-4-5-20251001-v1:0/invoke",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bedrock",
+                "model",
+                "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+                "invoke"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var padding = Array(801).join('This tool result describes the repository modules and their stable interfaces. ');",
+                  "pm.variables.set('bosunInvokeCacheBody', JSON.stringify({",
+                  "  anthropic_version: 'bedrock-2023-05-31', max_tokens: 16,",
+                  "  tools: [{name:'inspect',description:'Inspect a repository.',input_schema:{type:'object',properties:{path:{type:'string'}},required:['path']}}],",
+                  "  messages: [",
+                  "    {role:'user',content:'Inspect the repository, then reply OK.'},",
+                  "    {role:'assistant',content:[{type:'tool_use',id:'toolu_bosun_cache',name:'inspect',input:{path:'.'}}]},",
+                  "    {role:'user',content:[{type:'tool_result',tool_use_id:'toolu_bosun_cache',content:[{type:'text',text:padding,cache_control:{type:'ephemeral'}}]}]}",
+                  "  ]",
+                  "}));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invoke honors the nested tool-result cache marker', function () {",
+                  "  pm.expect(pm.response.code, pm.response.text()).to.eql(200);",
+                  "  var usage = pm.response.json().usage || {};",
+                  "  var cached = (usage.cache_creation_input_tokens || 0) + (usage.cache_read_input_tokens || 0);",
+                  "  pm.expect(cached, 'expected the tool-result breakpoint to cache: ' + JSON.stringify(usage)).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
