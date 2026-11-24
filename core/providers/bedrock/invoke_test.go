@@ -898,15 +898,15 @@ func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultContentBlockCacheControlSu
 
 // TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlSurvives is the
 // recursion case: cache_control nested inside a tool_result block's own array-form content
-// (Anthropic allows an independent cache breakpoint there, separate from one on the tool_result
-// block itself). applyMessageContentCacheControl must recurse into ToolResult.Content.
+// The marker must become a sibling of tool_result: nested cachePoint entries are not
+// supported by Converse ToolResultContentBlock.
 func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlSurvives(t *testing.T) {
 	raw := `{
 		"anthropic_version": "bedrock-2023-05-31",
 		"max_tokens": 16,
 		"messages": [{"role":"user","content":[
 			{"type":"tool_result","tool_use_id":"toolu_xyz789","content":[
-				{"type":"text","text":"Screenshot captured","cache_control":{"type":"ephemeral"}}
+				{"type":"text","text":"Screenshot captured","cache_control":{"type":"ephemeral","ttl":"1h"}}
 			]}
 		]}]
 	}`
@@ -915,19 +915,19 @@ func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultNestedContentCacheControlS
 	require.NoError(t, sonic.Unmarshal([]byte(raw), &req))
 
 	require.Len(t, req.Messages, 1)
-	require.Len(t, req.Messages[0].Content, 1, "no cache_control on the tool_result block itself, so no top-level sibling")
+	require.Len(t, req.Messages[0].Content, 2, "expected the tool_result plus a sibling cachePoint after it")
 
 	toolResult := req.Messages[0].Content[0].ToolResult
 	require.NotNil(t, toolResult)
-	require.Len(t, toolResult.Content, 2, "expected the nested text block plus a trailing standalone cachePoint entry")
-
+	require.Len(t, toolResult.Content, 1, "no cachePoint may be nested inside toolResult.content")
 	require.NotNil(t, toolResult.Content[0].Text)
 	assert.Equal(t, "Screenshot captured", *toolResult.Content[0].Text)
-	assert.Nil(t, toolResult.Content[0].CachePoint)
 
-	assert.Nil(t, toolResult.Content[1].Text)
-	require.NotNil(t, toolResult.Content[1].CachePoint)
-	assert.Equal(t, BedrockCachePointTypeDefault, toolResult.Content[1].CachePoint.Type)
+	cachePoint := req.Messages[0].Content[1].CachePoint
+	require.NotNil(t, cachePoint)
+	assert.Equal(t, BedrockCachePointTypeDefault, cachePoint.Type)
+	require.NotNil(t, cachePoint.TTL)
+	assert.Equal(t, "1h", string(*cachePoint.TTL))
 }
 
 // TestBedrockInvokeRequest_UnmarshalJSON_ContentBlockNoCacheControlUnaffected is the regression
@@ -3902,4 +3902,25 @@ func BenchmarkToBedrockInvokeAnthropicResponse_StopReason(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = toBedrockInvokeAnthropicResponse(resp, "claude-sonnet-4-6")
 	}
+}
+
+func TestBedrockInvokeRequest_UnmarshalJSON_ToolResultMarkedTwiceGetsOneCachePoint(t *testing.T) {
+	raw := `{
+		"anthropic_version": "bedrock-2023-05-31",
+		"max_tokens": 16,
+		"messages": [{"role":"user","content":[
+			{"type":"tool_result","tool_use_id":"toolu_xyz789","cache_control":{"type":"ephemeral"},"content":[
+				{"type":"text","text":"Screenshot captured","cache_control":{"type":"ephemeral"}}
+			]}
+		]}]
+	}`
+
+	var req BedrockInvokeRequest
+	require.NoError(t, sonic.Unmarshal([]byte(raw), &req))
+
+	require.Len(t, req.Messages, 1)
+	require.Len(t, req.Messages[0].Content, 2)
+	require.NotNil(t, req.Messages[0].Content[0].ToolResult)
+	assert.Len(t, req.Messages[0].Content[0].ToolResult.Content, 1)
+	assert.NotNil(t, req.Messages[0].Content[1].CachePoint)
 }

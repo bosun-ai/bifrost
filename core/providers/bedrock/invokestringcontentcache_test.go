@@ -135,8 +135,8 @@ func TestInvokeUnmarshal_EveryBreakpointSurvivesAStringMessage(t *testing.T) {
 }
 
 // TestInvokeUnmarshal_ToolResultCacheControlSurvivesAStringMessage pins the
-// nested case, since injectContentBlockCachePoints recurses into tool results
-// and the fallback path skipped that recursion along with everything else.
+// nested case: the fallback parse must retain the nested marker as a sibling
+// of tool_result, where Converse supports cachePoint entries.
 func TestInvokeUnmarshal_ToolResultCacheControlSurvivesAStringMessage(t *testing.T) {
 	req := unmarshalInvoke(t, `{
 		"messages": [
@@ -162,7 +162,10 @@ func TestInvokeUnmarshal_ToolResultCacheControlSurvivesAStringMessage(t *testing
 			found++
 		}
 	}
-	if found != 1 {
-		t.Errorf("cache points inside the tool result = %d, want 1", found)
+	if found != 0 {
+		t.Errorf("cache points inside the tool result = %d, want 0", found)
+	}
+	if got := cachePointCount(req.Messages[1]); got != 1 {
+		t.Errorf("sibling cache points = %d, want 1", got)
 	}
 }
