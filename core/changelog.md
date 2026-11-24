@@ -1,3 +1,5 @@
+- fix: Bosun fork retains explicit empty tool requirements, Invoke tool-result caching, and Mistral compatibility/reasoning fixes after the upstream rebase.
+
 - feat: baseten - new provider for Model APIs and dedicated deployments: chat, Responses, embeddings, transcription, decisions through System One, image generation on dedicated deployments (including `/predict` URLs) and rerank on BEI deployments
 - feat: kimchi - new provider for chat, Responses, embeddings and list models (thanks [@arnasnn](https://github.com/arnasnn)!)
 - feat: machgen - new provider for image generation, image edit and async video generation (submit, retrieve, download), with model listing (thanks [@nishkarsh-machgen](https://github.com/nishkarsh-machgen)!)
