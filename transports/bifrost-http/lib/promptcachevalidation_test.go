@@ -2,6 +2,8 @@ package lib
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/maximhq/bifrost/core/schemas"
@@ -122,5 +124,39 @@ func TestValidatePromptCachePointEnumsMatchConfigSchema(t *testing.T) {
 		assert.NoError(t, ValidatePromptCache(&schemas.PromptCacheConfig{
 			InjectionPoints: []schemas.CacheControlInjectionPoint{{Location: "message", Role: schemas.Ptr(role)}},
 		}), "schema declares role %q valid, so the API must accept it", role)
+	}
+}
+
+func TestConfigSchemaAcceptsPromptCachingAcrossProviders(t *testing.T) {
+	for provider, extra := range map[string]string{
+		"openai": "", "anthropic": "", "mistral": "",
+		"azure":          `,"azure_key_config":{"endpoint":"https://example.openai.azure.com"}`,
+		"bedrock":        `,"bedrock_key_config":{"region":"us-east-1"}`,
+		"bedrock_mantle": `,"bedrock_mantle_key_config":{"region":"us-east-1"}`,
+	} {
+		t.Run(provider, func(t *testing.T) {
+			for _, policy := range []string{`{"auto_inject":true}`, `{"auto_inject":false}`, `{"auto_inject":true,"cache_control_injection_points":[{"location":"message","index":0}]}`} {
+				config := fmt.Sprintf(`{"providers":{%q:{"keys":[{"name":"test","value":"test-key","weight":1,"models":["*"]%s}],"prompt_cache":%s}}}`, provider, extra, policy)
+				require.NoError(t, ValidateConfigSchema([]byte(config), loadLocalSchema(t)))
+			}
+			config := fmt.Sprintf(`{"providers":{%q:{"keys":[{"name":"test","value":"test-key","weight":1,"models":["*"]%s}],"prompt_cache":{"auto_inject":"true"}}}}`, provider, extra)
+			require.Error(t, ValidateConfigSchema([]byte(config), loadLocalSchema(t)), "a string must not enable injection")
+		})
+	}
+}
+
+// Specialized providers reject unknown properties, so each must declare the shared policy.
+func TestEverySpecializedProviderSchemaAllowsPromptCaching(t *testing.T) {
+	var schema struct {
+		Defs map[string]struct{ Properties map[string]json.RawMessage } `json:"$defs"`
+	}
+	require.NoError(t, json.Unmarshal(loadLocalSchema(t), &schema))
+	for name, definition := range schema.Defs {
+		if !strings.HasPrefix(name, "provider_with_") {
+			continue
+		}
+		t.Run(name, func(t *testing.T) {
+			require.JSONEq(t, `{"$ref":"#/$defs/prompt_cache"}`, string(definition.Properties["prompt_cache"]))
+		})
 	}
 }

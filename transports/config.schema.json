@@ -9655,6 +9655,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -9705,6 +9708,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
@@ -9757,6 +9763,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -9807,6 +9816,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config_without_base_url"
@@ -9859,6 +9871,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -9909,6 +9924,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
@@ -9961,6 +9979,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -10011,6 +10032,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
@@ -10063,6 +10087,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -10114,6 +10141,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -10161,6 +10191,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
@@ -10210,6 +10243,9 @@
           "minItems": 1,
           "description": "API keys for this provider"
         },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
+        },
         "network_config": {
           "$ref": "#/$defs/network_config"
         },
@@ -10257,6 +10293,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
@@ -10308,6 +10347,9 @@
           },
           "minItems": 1,
           "description": "API keys for this provider"
+        },
+        "prompt_cache": {
+          "$ref": "#/$defs/prompt_cache"
         },
         "network_config": {
           "$ref": "#/$defs/network_config"
