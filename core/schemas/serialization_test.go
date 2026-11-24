@@ -2280,3 +2280,13 @@ func TestDeepCopyChatMessagePreservesAzureContext(t *testing.T) {
 		t.Errorf("the copy shares the original's context bytes")
 	}
 }
+
+func TestSonic_ToolFunctionParameters_DeepCopy_PreservesExplicitEmptyRequired(t *testing.T) {
+	original := &ToolFunctionParameters{Required: []string{}}
+
+	copied := DeepCopyToolFunctionParameters(original)
+
+	require.NotNil(t, copied)
+	assert.NotNil(t, copied.Required, "an explicit empty required array must remain distinct from an absent required field")
+	assert.Empty(t, copied.Required)
+}
