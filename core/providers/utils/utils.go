@@ -3727,10 +3727,12 @@ func ProviderSendsDoneMarker(ctx *schemas.BifrostContext, providerName schemas.M
 		}
 	}
 	switch providerName {
-	case schemas.Cerebras, schemas.Perplexity, schemas.Bedrock, schemas.BedrockMantle:
-		// Cerebras, Perplexity, Bedrock and Bedrock mantle don't send [DONE] marker, ends stream after finish_reason
+	case schemas.Cerebras, schemas.Perplexity:
+		// These providers end their stream after finish_reason.
 		return false
 	default:
+		// Mantle sends usage after finish_reason. This also applies to the legacy
+		// Bedrock Mantle route; native Bedrock event streams do not use this helper.
 		// Default to expecting [DONE] marker for safety
 		return true
 	}

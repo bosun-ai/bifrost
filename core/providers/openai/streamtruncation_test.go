@@ -228,6 +228,44 @@ func TestChatStreamCleanDoneUnaffected(t *testing.T) {
 	}
 }
 
+func TestMantleChatStreamKeepsUsageAfterFinishReason(t *testing.T) {
+	for _, providerName := range []schemas.ModelProvider{schemas.BedrockMantle, schemas.Bedrock} {
+		t.Run(string(providerName), func(t *testing.T) {
+			stop := "stop"
+			usageChunk := `data: {"id":"chatcmpl-repro","object":"chat.completion.chunk","created":1,"model":"openai.gpt-oss-120b","choices":[],"usage":{"prompt_tokens":73,"completion_tokens":39,"total_tokens":112,"prompt_tokens_details":{"cached_tokens":64}}}` + "\n\n"
+			server := completeSSEServer(t, chatChunk("OK", nil)+chatChunk("", &stop)+usageChunk+"data: [DONE]\n\n")
+			defer server.Close()
+			provider := newStreamTestProvider(server.URL)
+			request := basicChatRequest()
+			request.Provider = providerName
+			stream, err := HandleOpenAIChatCompletionStreaming(
+				newStreamTestContext(), provider.streamingClient, server.URL, request,
+				nil, nil, 5, false, false, providerName, passthroughPostHook,
+				nil, nil, nil, nil, nil, nil, testNoopLogger{}, nil,
+			)
+			if err != nil {
+				t.Fatalf("stream setup failed: %v", err)
+			}
+			chunks := collectChunks(t, stream)
+			if len(chunks) == 0 {
+				t.Fatal("expected response chunks")
+			}
+			for _, chunk := range chunks {
+				if chunk.BifrostError != nil {
+					t.Fatalf("unexpected stream error: %+v", chunk.BifrostError)
+				}
+			}
+			final := chunks[len(chunks)-1].BifrostChatResponse
+			if final == nil || final.Usage == nil || final.Usage.TotalTokens != 112 || final.Usage.PromptTokens != 73 || final.Usage.CompletionTokens != 39 {
+				t.Fatalf("trailing usage was lost: %+v", final)
+			}
+			if final.Usage.PromptTokensDetails == nil || final.Usage.PromptTokensDetails.CachedReadTokens != 64 {
+				t.Fatalf("cached tokens were lost: %+v", final.Usage)
+			}
+		})
+	}
+}
+
 // [DONE] is a terminal marker in its own right: a provider that ends the stream
 // properly but never sets finish_reason is not truncated.
 func TestChatStreamDoneWithoutFinishReasonIsNotTruncated(t *testing.T) {

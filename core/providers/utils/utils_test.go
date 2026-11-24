@@ -2289,9 +2289,9 @@ func TestProviderSendsDoneMarker(t *testing.T) {
 		// Providers that don't send a [DONE] marker; stream ends on finish_reason.
 		{schemas.Cerebras, false},
 		{schemas.Perplexity, false},
-		{schemas.Bedrock, false},
-		{schemas.BedrockMantle, false},
 		// Providers that do send a [DONE] marker.
+		{schemas.Bedrock, true},
+		{schemas.BedrockMantle, true},
 		{schemas.OpenAI, true},
 		{schemas.Azure, true},
 		{schemas.Anthropic, true},

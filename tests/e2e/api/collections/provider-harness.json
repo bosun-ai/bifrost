@@ -145822,6 +145822,121 @@
           ]
         }
       ]
+    },
+    {
+      "name": "79. Mantle trailing streaming usage",
+      "description": "Mantle OpenAI-compatible chat streams emit usage after finish_reason. The gateway must read that chunk before synthesizing its terminal response. A unary control pins the same model route.",
+      "item": [
+        {
+          "name": "bedrock_mantle/openai.gpt-oss-120b unary trailing usage",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/eu-central-1/openai.gpt-oss-120b\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with OK.\"\n    }\n  ],\n  \"max_tokens\": 128,\n  \"stream\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('Mantle trailing usage includes real token counts', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  var usage = pm.response.json().usage;",
+                  "  pm.expect(usage, 'missing usage: ' + pm.response.text()).to.be.an('object');",
+                  "  pm.expect(usage.prompt_tokens, pm.response.text()).to.be.above(0);",
+                  "  pm.expect(usage.completion_tokens, pm.response.text()).to.be.above(0);",
+                  "  pm.expect(usage.total_tokens).to.eql(usage.prompt_tokens + usage.completion_tokens);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "bedrock_mantle/openai.gpt-oss-120b streaming trailing usage",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"bedrock_mantle/eu-central-1/openai.gpt-oss-120b\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Reply with OK.\"\n    }\n  ],\n  \"max_tokens\": 128,\n  \"stream\": true,\n  \"stream_options\": {\n    \"include_usage\": true\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "chat",
+                "completions"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if ([401, 403, 429, 500, 502, 503, 504].indexOf(pm.response.code) !== -1) { return; }",
+                  "pm.test('Mantle trailing usage includes real token counts', function () {",
+                  "  pm.expect(pm.response.code, 'failed: ' + pm.response.text()).to.eql(200);",
+                  "  var usage = null;",
+                  "  pm.expect(pm.response.text()).to.include('[DONE]');",
+                  "  pm.response.text().split('\\n').forEach(function (line) {",
+                  "    if (line.indexOf('data:') !== 0 || line.slice(5).trim() === '[DONE]') { return; }",
+                  "    var chunk = JSON.parse(line.slice(5).trim());",
+                  "    pm.expect(chunk.error, pm.response.text()).not.to.exist;",
+                  "    if (chunk.usage) { usage = chunk.usage; }",
+                  "  });",
+                  "  pm.expect(usage, 'missing usage: ' + pm.response.text()).to.be.an('object');",
+                  "  pm.expect(usage.prompt_tokens, pm.response.text()).to.be.above(0);",
+                  "  pm.expect(usage.completion_tokens, pm.response.text()).to.be.above(0);",
+                  "  pm.expect(usage.total_tokens).to.eql(usage.prompt_tokens + usage.completion_tokens);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
