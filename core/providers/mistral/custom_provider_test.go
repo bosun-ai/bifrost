@@ -2,6 +2,8 @@ package mistral
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -159,4 +161,179 @@ func TestMistralProvider_CustomAliasEmbeddingReportsAliasMetadata(t *testing.T) 
 	// Note: ExtraFields.Provider and ResolvedModelUsed are populated by
 	// bifrost.go's dispatcher via PopulateExtraFields, not by provider
 	// methods called in isolation.
+}
+
+func TestMistralProviderOmitsUserAtHTTPBoundary(t *testing.T) {
+	for _, providerName := range []schemas.ModelProvider{schemas.Mistral, customMistralProviderName} {
+		for _, api := range []string{"chat", "responses"} {
+			for _, streaming := range []bool{false, true} {
+				name := string(providerName) + "/" + api
+				if streaming {
+					name += "/stream"
+				}
+				t.Run(name, func(t *testing.T) {
+					captured := make(chan map[string]any, 1)
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						var request map[string]any
+						if err != nil || sonic.Unmarshal(body, &request) != nil {
+							http.Error(w, "invalid JSON", http.StatusBadRequest)
+							return
+						}
+						captured <- request
+						if _, exists := request["user"]; exists {
+							w.Header().Set("Content-Type", "application/json")
+							w.WriteHeader(http.StatusUnprocessableEntity)
+							_, _ = io.WriteString(w, `{"message":{"detail":[{"type":"extra_forbidden","loc":["body","user"],"msg":"Extra inputs are not permitted"}]}}`)
+							return
+						}
+						if streaming {
+							w.Header().Set("Content-Type", "text/event-stream")
+							_, _ = io.WriteString(w, "data: {\"id\":\"chatcmpl-test\",\"object\":\"chat.completion.chunk\",\"created\":1,\"model\":\"mistral-large-4\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"hello\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n")
+						} else {
+							w.Header().Set("Content-Type", "application/json")
+							_, _ = io.WriteString(w, `{"id":"chatcmpl-test","object":"chat.completion","created":1,"model":"mistral-large-4","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`)
+						}
+					}))
+					defer server.Close()
+					config := &schemas.ProviderConfig{NetworkConfig: schemas.NetworkConfig{BaseURL: server.URL, AllowPrivateNetwork: true}}
+					ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
+					defer cancel()
+					if providerName == customMistralProviderName {
+						config.CustomProviderConfig = &schemas.CustomProviderConfig{
+							CustomProviderKey: string(providerName), BaseProviderType: schemas.Mistral,
+						}
+						ctx.SetValue(schemas.BifrostContextKeyIsCustomProvider, true)
+					}
+					provider := NewMistralProvider(config, &testLogger{})
+					request := &schemas.BifrostChatRequest{
+						Provider: providerName, Model: "mistral-large-4",
+						Input: []schemas.ChatMessage{{Role: schemas.ChatMessageRoleUser,
+							Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")}}},
+						Params: &schemas.ChatParameters{User: schemas.Ptr("benchmark-user")},
+					}
+					responsesRequest := request.ToResponsesRequest()
+					responsesRequest.Params.User = schemas.Ptr("benchmark-user")
+					if streaming {
+						postHook := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
+							return r, e
+						}
+						var stream chan *schemas.BifrostStreamChunk
+						var err *schemas.BifrostError
+						if api == "responses" {
+							stream, err = provider.ResponsesStream(ctx, postHook, nil, schemas.Key{}, responsesRequest)
+						} else {
+							stream, err = provider.ChatCompletionStream(ctx, postHook, nil, schemas.Key{}, request)
+						}
+						require.Nil(t, err)
+						chunks := 0
+						for chunk := range stream {
+							assert.Nil(t, chunk.BifrostError)
+							chunks++
+						}
+						require.Positive(t, chunks)
+					} else if api == "responses" {
+						response, err := provider.Responses(ctx, schemas.Key{}, responsesRequest)
+						require.Nil(t, err)
+						require.NotNil(t, response)
+					} else {
+						response, err := provider.ChatCompletion(ctx, schemas.Key{}, request)
+						require.Nil(t, err)
+						require.NotNil(t, response)
+					}
+					wire := <-captured
+					assert.NotContains(t, wire, "user")
+					assert.Equal(t, "mistral-large-4", wire["model"])
+					assert.Equal(t, "benchmark-user", *request.Params.User)
+					assert.Equal(t, "benchmark-user", *responsesRequest.Params.User)
+					assert.Equal(t, providerName, request.Provider)
+				})
+			}
+		}
+	}
+}
+
+func TestMistralThinkingAtHTTPBoundary(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(fmt.Sprint(streaming), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				message := `{"role":"assistant","content":[{"type":"thinking","thinking":[{"type":"text","text":"synthetic thought"}],"closed":true},{"type":"text","text":"visible"}],"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"echo","arguments":"{}"}}]}`
+				field, object := "message", "chat.completion"
+				if streaming {
+					field, object = "delta", "chat.completion.chunk"
+				}
+				body := fmt.Sprintf(`{"id":"test","object":%q,"created":1,"model":"mistral-large-4","choices":[{"index":0,%q:%s,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":12,"completion_tokens":3,"total_tokens":15,"prompt_tokens_details":{"cached_tokens":8}}}`, object, field, message)
+				if streaming {
+					w.Header().Set("Content-Type", "text/event-stream")
+					fmt.Fprintf(w, "data: %s\n\ndata: [DONE]\n\n", body)
+				} else {
+					w.Header().Set("Content-Type", "application/json")
+					io.WriteString(w, body)
+				}
+			}))
+			defer server.Close()
+			provider := NewMistralProvider(&schemas.ProviderConfig{NetworkConfig: schemas.NetworkConfig{BaseURL: server.URL, AllowPrivateNetwork: true}}, &testLogger{})
+			ctx, cancel := schemas.NewBifrostContextWithCancel(context.Background())
+			defer cancel()
+			request := &schemas.BifrostChatRequest{Provider: schemas.Mistral, Model: "mistral-large-4", Input: []schemas.ChatMessage{{Role: schemas.ChatMessageRoleUser, Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")}}}}
+			check := func(response *schemas.BifrostChatResponse) {
+				encoded, err := json.Marshal(response)
+				require.NoError(t, err)
+				var wire map[string]any
+				require.NoError(t, json.Unmarshal(encoded, &wire))
+				choice := wire["choices"].([]any)[0].(map[string]any)
+				field := "message"
+				if streaming {
+					field = "delta"
+				}
+				message := choice[field].(map[string]any)
+				require.Equal(t, "visible", message["content"])
+				require.Equal(t, "synthetic thought", message["reasoning_content"])
+				require.Len(t, message["tool_calls"], 1)
+				if !streaming {
+					require.EqualValues(t, 12, wire["usage"].(map[string]any)["prompt_tokens"])
+				}
+			}
+			if streaming {
+				hook := func(_ *schemas.BifrostContext, r *schemas.BifrostResponse, e *schemas.BifrostError) (*schemas.BifrostResponse, *schemas.BifrostError) {
+					return r, e
+				}
+				stream, err := provider.ChatCompletionStream(ctx, hook, nil, schemas.Key{}, request)
+				require.Nil(t, err)
+				count := 0
+				for chunk := range stream {
+					require.Nil(t, chunk.BifrostError)
+					if chunk.BifrostChatResponse != nil && len(chunk.BifrostChatResponse.Choices) > 0 && chunk.BifrostChatResponse.Choices[0].Delta.Content != nil {
+						check(chunk.BifrostChatResponse)
+						count++
+					}
+				}
+				require.Equal(t, 1, count)
+			} else {
+				response, err := provider.ChatCompletion(ctx, schemas.Key{}, request)
+				require.Nil(t, err)
+				check(response)
+				responses, err := provider.Responses(ctx, schemas.Key{}, request.ToResponsesRequest())
+				require.Nil(t, err)
+				check(responses.ToBifrostChatResponse())
+			}
+		})
+	}
+}
+
+func BenchmarkMistralContentNormalization(b *testing.B) {
+	for name, body := range map[string]string{
+		"string":   `{"choices":[{"delta":{"content":"hello"}}]}`,
+		"thinking": `{"choices":[{"delta":{"content":[{"type":"thinking","thinking":[{"type":"text","text":"thought"}]},{"type":"text","text":"hello"}]}}]}`,
+	} {
+		b.Run(name, func(b *testing.B) {
+			data := []byte(body)
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := normalizeMistralContent(data); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }

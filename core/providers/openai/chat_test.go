@@ -1367,7 +1367,6 @@ func TestToOpenAIChatRequest_StripsAssistantReasoningContentForCompatibleProvide
 		model    string
 	}{
 		{name: "deepseek", provider: schemas.DeepSeek, model: "deepseek-v4-pro"},
-		{name: "mistral", provider: schemas.Mistral, model: "zai-glm-5-3"},
 		{name: "vertex mistral", provider: schemas.Vertex, model: "mistral-medium-3"},
 	}
 
@@ -3860,4 +3859,102 @@ func TestOpenAIChatRequest_MessageLevelCacheControlIngress(t *testing.T) {
 	body, err := sonic.Marshal(ToOpenAIChatRequest(ctx, bifrostReq))
 	require.NoError(t, err)
 	require.Equal(t, 3, strings.Count(string(body), `"cache_control"`), "all three breakpoints must reach OpenRouter: %s", body)
+}
+
+func TestToOpenAIChatRequestMistralOmitsUnsupportedUser(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		provider schemas.ModelProvider
+		model    string
+		user     *string
+		keepUser bool
+	}{
+		{"large4", schemas.Mistral, "mistral-large-4", schemas.Ptr("benchmark-user"), false},
+		{"medium", schemas.Mistral, "mistral-medium-latest", schemas.Ptr("benchmark-user"), false},
+		{"empty user", schemas.Mistral, "mistral-large-4", schemas.Ptr(""), false},
+		{"no user", schemas.Mistral, "mistral-large-4", nil, false},
+		{"vertex mistral", schemas.Vertex, "mistral-large", schemas.Ptr("benchmark-user"), false},
+		{"openai unchanged", schemas.OpenAI, "gpt-4o", schemas.Ptr("benchmark-user"), true},
+		{"azure unchanged", schemas.Azure, "gpt-4o", schemas.Ptr("benchmark-user"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := &schemas.BifrostChatRequest{
+				Provider: tc.provider,
+				Model:    tc.model,
+				Input: []schemas.ChatMessage{{
+					Role:    schemas.ChatMessageRoleUser,
+					Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")},
+				}},
+				Params: &schemas.ChatParameters{User: tc.user},
+			}
+			ctx, cancel := schemas.NewBifrostContextWithCancel(nil)
+			defer cancel()
+			converted := ToOpenAIChatRequest(ctx, request)
+			body, err := json.Marshal(converted)
+			require.NoError(t, err)
+			var wire map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(body, &wire))
+			if tc.keepUser {
+				require.JSONEq(t, `"benchmark-user"`, string(wire["user"]))
+			} else {
+				require.NotContains(t, wire, "user", "Mistral rejects this field with HTTP 422")
+			}
+			require.Equal(t, tc.user, request.Params.User, "conversion must preserve caller metadata")
+			require.Equal(t, "hello", *converted.Messages[0].Content.ContentStr)
+		})
+	}
+}
+
+func TestMistralReplaysReasoningAsNativeContent(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		content  *schemas.ChatMessageContent
+		wantText bool
+	}{
+		{"string", &schemas.ChatMessageContent{ContentStr: schemas.Ptr("visible")}, true},
+		{"blocks", &schemas.ChatMessageContent{ContentBlocks: []schemas.ChatContentBlock{{Type: schemas.ChatContentBlockTypeText, Text: schemas.Ptr("visible")}}}, true},
+		{"reasoning only", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := &schemas.BifrostChatRequest{Provider: schemas.Mistral, Model: "mistral-large-4", Input: []schemas.ChatMessage{{Role: schemas.ChatMessageRoleAssistant, Content: tc.content, ChatAssistantMessage: &schemas.ChatAssistantMessage{Reasoning: schemas.Ptr("synthetic thought")}}}}
+			before, err := json.Marshal(input)
+			require.NoError(t, err)
+			encoded, err := json.Marshal(ToOpenAIChatRequest(nil, input))
+			require.NoError(t, err)
+			var wire map[string]any
+			require.NoError(t, json.Unmarshal(encoded, &wire))
+			message := wire["messages"].([]any)[0].(map[string]any)
+			require.NotContains(t, message, "reasoning_content")
+			want := []any{map[string]any{"type": "thinking", "thinking": []any{map[string]any{"type": "text", "text": "synthetic thought"}}, "closed": true}}
+			if tc.wantText {
+				want = append(want, map[string]any{"type": "text", "text": "visible"})
+			}
+			require.Equal(t, want, message["content"])
+			after, err := json.Marshal(input)
+			require.NoError(t, err)
+			require.JSONEq(t, string(before), string(after), "conversion must not mutate the caller's messages")
+		})
+	}
+}
+
+func BenchmarkMistralRequestMarshaling(b *testing.B) {
+	for _, replay := range []bool{false, true} {
+		name := "plain"
+		if replay {
+			name = "reasoning"
+		}
+		b.Run(name, func(b *testing.B) {
+			message := schemas.ChatMessage{Role: schemas.ChatMessageRoleAssistant, Content: &schemas.ChatMessageContent{ContentStr: schemas.Ptr("hello")}}
+			if replay {
+				message.ChatAssistantMessage = &schemas.ChatAssistantMessage{Reasoning: schemas.Ptr("a short thought")}
+			}
+			request := ToOpenAIChatRequest(nil, &schemas.BifrostChatRequest{Provider: schemas.Mistral, Model: "mistral-large-4", Input: []schemas.ChatMessage{message}})
+			b.ReportAllocs()
+			for b.Loop() {
+				if _, err := json.Marshal(request); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
 }

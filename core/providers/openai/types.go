@@ -727,7 +727,11 @@ func (req *OpenAIChatRequest) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	return providerUtils.MarshalSorted(aux)
+	body, err := providerUtils.MarshalSorted(aux)
+	if err != nil || req.Provider != schemas.Mistral {
+		return body, err
+	}
+	return encodeMistralReasoning(body, processedMessages)
 }
 
 // UnmarshalJSON implements custom JSON unmarshalling for OpenAIChatRequest.

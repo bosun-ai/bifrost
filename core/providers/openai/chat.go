@@ -399,6 +399,9 @@ var mistralLegacyEffortControl = &schemas.EffortControl{Levels: []string{schemas
 // Reasoning effort follows the model's datasheet ladder (per-model on Mistral today, e.g.
 // low/high/max on GLM 5.3), falling back to the legacy none/high clamp without one.
 func (req *OpenAIChatRequest) applyMistralCompatibility(caps schemas.ModelCaps) {
+	// Mistral rejects the OpenAI user field with HTTP 422.
+	req.User = nil
+
 	// Mistral uses max_tokens instead of max_completion_tokens
 	if req.MaxCompletionTokens != nil {
 		req.MaxTokens = req.MaxCompletionTokens
@@ -415,10 +418,13 @@ func (req *OpenAIChatRequest) applyMistralCompatibility(caps schemas.ModelCaps) 
 		req.Reasoning.Effort = schemas.Ptr(caps.NormalizeReasoningEffort(*req.Reasoning.Effort, mistralLegacyEffortControl))
 	}
 
-	// Mistral rejects unknown assistant fields with 422 extra_forbidden, reasoning_content included
-	for i := range req.Messages {
-		if assistantMessage := req.Messages[i].OpenAIChatAssistantMessage; assistantMessage != nil {
-			assistantMessage.Reasoning = nil
+	// Direct Mistral replays reasoning as native thinking blocks during marshaling.
+	// Vertex's Mistral API still needs unsupported assistant reasoning omitted.
+	if req.Provider != schemas.Mistral {
+		for i := range req.Messages {
+			if assistantMessage := req.Messages[i].OpenAIChatAssistantMessage; assistantMessage != nil {
+				assistantMessage.Reasoning = nil
+			}
 		}
 	}
 }
